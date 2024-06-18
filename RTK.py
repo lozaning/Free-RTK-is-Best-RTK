@@ -24,10 +24,36 @@ caster_password = ""
 correction_queue = Queue()
 
 def connect_to_ntrip(server, port, username, password, mountpoint):
-    # ... (same as before)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        sock.connect((server, port))
+        
+        # Send NTRIP request
+        request = f"GET /{mountpoint} HTTP/1.1\r\n"
+        request += f"User-Agent: NTRIP Client\r\n"
+        request += f"Authorization: Basic {base64.b64encode((username + ':' + password).encode()).decode()}\r\n"
+        request += f"\r\n"
+        sock.sendall(request.encode())
+        
+        # Read NTRIP response
+        response = sock.recv(4096).decode()
+        if "200 OK" not in response:
+            raise Exception("Failed to connect to NTRIP server")
+        
+        return sock
+    except Exception as e:
+        raise Exception(f"Error connecting to NTRIP server: {str(e)}")
 
 def receive_corrections(rtcm_sock):
-    # ... (same as before)
+    try:
+        while True:
+            data = rtcm_sock.recv(4096)
+            if not data:
+                break
+            correction_queue.put(data)
+    except Exception as e:
+        log_text(f"Error receiving corrections: {str(e)}")
 
 def send_corrections(caster_sock):
     try:
@@ -78,10 +104,12 @@ def start_replay():
         messagebox.showerror("Error", str(e))
 
 def stop_replay():
-    # ... (same as before)
+    log_text("Stopping replay...")
+    root.quit()
 
 def log_text(text):
-    # ... (same as before)
+    log_textbox.insert(tk.END, text + "\n")
+    log_textbox.see(tk.END)
 
 # Create the main window
 root = tk.Tk()
